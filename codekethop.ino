@@ -18,8 +18,14 @@ TaskHandle_t cameraStreamTaskHandle = NULL;
 // ── WiFi ─────────────────────────────────────────
 const char* WIFI_SSID = "Bo De";
 const char* WIFI_PASS = "13579999";
-const char* SERVER_URL = "http://192.168.1.23:8000/predict";
-const char* SESSION_URL = "http://192.168.1.4:8000/session/status";
+const char* SERVER_URL = "http://192.168.1.23:8000/predict/";
+const char* SESSION_URL = "http://192.168.1.23:8000/session/status/";
+
+struct SessionStatus {
+  bool active = false;
+  bool locked = false;
+  int rescanCount = 0;
+};
 
 // ════════════════════════════════════════════════
 // DEBUG LOGGER
@@ -90,7 +96,8 @@ enum State { IDLE,
              WEIGHING,
              STABLE,
              SENDING,
-             RESULT };
+             RESULT,
+             LOCKED };
 State state = IDLE;
 
 float ema = 0;
@@ -100,6 +107,8 @@ int stableCount = 0;
 bool objectPresent = false;
 // Thêm biến này vào phần State
 bool stableBeepDone = false;
+int currentRescanCount = 0;
+bool lastActive = false; // Theo dõi trạng thái phiên cân để cập nhật LCD
 
 // ── Buzzer ────────────────────────────────────────
 unsigned long beepEnd = 0;
@@ -109,9 +118,19 @@ int beepDuration = 0;
 
 // ── Helper functions ──────────────────────────────
 
+void updateIdleDisplay(bool active) {
+  if (active) {
+    lcdPrint("  San sang can  ", "  Moi dat vat... ");
+    setRGB(0, 0, 1); // Màu xanh dương - Sẵn sàng
+  } else {
+    lcdPrint("  Cho phien can ", "  Chua bat dau  ");
+    setRGB(0, 0, 0); // Tắt LED
+  }
+}
+
 void logState(float dist, float raw, float output, bool usDetect, bool wDetect) {
 #if DEBUG_ENABLED
-  const char* stateNames[] = { "IDLE", "WEIGHING", "STABLE", "SENDING", "RESULT" };
+  const char* stateNames[] = { "IDLE", "WEIGHING", "STABLE", "SENDING", "RESULT", "LOCKED" };
   LOG_INFO("─── Sensor snapshot ───────────────────");
   LOG_INFO("  US dist     : %.1f cm  (detect=%s, threshold=%.0f cm)", dist, usDetect ? "YES" : "no", US_THRESHOLD_CM);
   LOG_INFO("  Raw weight  : %.4f kg", raw);
@@ -142,18 +161,42 @@ void startBeep(int ms, int count = 1) {
   beepEnd = millis() + ms;
 }
 
+SessionStatus getSessionStatus() {
+  SessionStatus status;
+  if (WiFi.status() != WL_CONNECTED) {
+    LOG_ERR("WiFi not connected — cannot check session");
+    return status;
+  }
+
+  WiFiClient client;
+  HTTPClient http;
+  http.begin(client, SESSION_URL);
+  http.setTimeout(5000); // Tăng timeout lên 5s
+  int code = http.GET();
+  if (code == 200) {
+    String resp = http.getString();
+    status.active = (resp.indexOf("\"active\":true") >= 0 || resp.indexOf("\"active\": true") >= 0);
+    status.locked = (resp.indexOf("\"locked\":true") >= 0 || resp.indexOf("\"locked\": true") >= 0);
+    
+    int idx = resp.indexOf("\"rescan_count\"");
+    if (idx >= 0) {
+      int s = resp.indexOf(":", idx) + 1;
+      while (s < resp.length() && !isdigit(resp[s])) s++;
+      int e = s;
+      while (e < resp.length() && isdigit(resp[e])) e++;
+      status.rescanCount = resp.substring(s, e).toInt();
+    }
+    LOG_INFO("Session response: active=%d, locked=%d, rescan=%d", status.active, status.locked, status.rescanCount);
+  } else {
+    LOG_ERR("Failed to check session — HTTP code: %d", code);
+  }
+  http.end();
+  return status;
+}
+
 bool isSessionActive() {
-  // HTTPClient http;
-  // http.begin(SESSION_URL);
-  // http.setTimeout(3000);
-  // int code = http.GET();
-  // bool active = false;
-  // if (code == 200) {
-  //   String body = http.getString();
-  //   active = (body.indexOf("\"active\":true") >= 0);
-  // }
-  // http.end();
-  return true;
+  SessionStatus status = getSessionStatus();
+  return status.active;
 }
 
 bool initCamera() {
@@ -313,6 +356,7 @@ bool sendToServer(float kg, String& outName, float& outPrice, float& outWeight) 
     return false;
   }
 
+  WiFiClient client;
   HTTPClient http;
 
   // Build URL với query params: weight + cam_ip
@@ -326,7 +370,7 @@ bool sendToServer(float kg, String& outName, float& outPrice, float& outWeight) 
 
   LOG_INFO("Full URL: %s", url.c_str());
 
-  http.begin(url);
+  http.begin(client, url);
   http.setTimeout(10000);
   int code = http.GET();
 
@@ -485,12 +529,14 @@ void setup() {
   // ── Done ────────────────────────────────────────
   LOG_SEP();
   LOG_OK("System ready!");
-  LOG_INFO("State: IDLE — waiting for object");
+  LOG_INFO("State: IDLE — waiting for session/object");
   LOG_SEP();
 
-  setRGB(0, 0, 0);
-  // startBeep(150);
-  lcdPrint("  Place object  ", "  on scale...   ");
+  // Kiểm tra trạng thái ban đầu
+  SessionStatus initStatus = getSessionStatus();
+  lastActive = initStatus.active;
+  currentRescanCount = initStatus.rescanCount;
+  updateIdleDisplay(lastActive);
 
   // ── MJPEG Camera Stream Task ─────────────────────
   xTaskCreatePinnedToCore(
@@ -542,7 +588,36 @@ void loop() {
   switch (state) {
     case IDLE:
       idleBlink();
-      if (usDetect && weightDetect) {
+
+      // Định kỳ kiểm tra session status để phát hiện LOCKED và lấy rescan_count hiện tại
+      static unsigned long lastSessionCheck = 0;
+      if (now - lastSessionCheck > 2000) {
+        lastSessionCheck = now;
+        SessionStatus sStatus = getSessionStatus();
+        
+        // Luôn cập nhật rescanCount
+        currentRescanCount = sStatus.rescanCount;
+
+        if (sStatus.locked) {
+          state = LOCKED;
+          lcdPrint("  HE THONG KHOA ", "  Cho nhan vien..");
+          setRGB(1, 0, 0);
+          LOG_WARN("System is LOCKED by server!");
+          break;
+        }
+
+        // Luôn cập nhật LCD dựa trên trạng thái Active thực tế từ server
+        if (sStatus.active != lastActive) {
+          lastActive = sStatus.active;
+          updateIdleDisplay(lastActive);
+        } else {
+          // Trường hợp khởi động xong, lastActive có thể khớp nhưng LCD chưa hiện đúng
+          // (Dù setup đã gọi, nhưng để chắc chắn ta có thể refresh định kỳ hoặc dựa trên flag)
+        }
+      }
+
+      // Chỉ bắt đầu cân nếu phiên đang Active
+      if (lastActive && usDetect && weightDetect) {
         LOG_SEP();
         LOG_OK("Object detected → US=%.1f cm | weight=%.4f kg", dist, output);
         stableCount = 0;
@@ -558,8 +633,7 @@ void loop() {
         ema = displayed = 0;
         stableCount = 0;
         stableBeepDone = false;
-        lcdPrint("  Place object  ", "  on scale...   ");
-        setRGB(0, 0, 0);
+        updateIdleDisplay(lastActive);
         state = IDLE;
         LOG_OK("Object removed → IDLE");
         break;
@@ -588,8 +662,7 @@ void loop() {
         ema = displayed = 0;
         stableCount = 0;
         stableBeepDone = false;
-        lcdPrint("  Place object  ", "  on scale...   ");
-        setRGB(0, 0, 0);
+        updateIdleDisplay(lastActive);
         state = IDLE;
         LOG_OK("Object removed at STABLE → IDLE");
         break;
@@ -610,14 +683,24 @@ void loop() {
       if (millis() < beepEnd || beepRepeat > 0) break;
 
       // Beep xong → kiểm tra session
-      if (!isSessionActive()) {
-        lcdPrint("  Chua bat dau  ", "  phien can!    ");
-        delay(1500);
-        stableCount = 0;
-        stableBeepDone = false;
-        lastStable = output;
-        state = WEIGHING;
-        break;
+      {
+        SessionStatus sStatus = getSessionStatus();
+        if (sStatus.locked) {
+          state = LOCKED;
+          lcdPrint("  HE THONG KHOA ", "  Cho nhan vien..");
+          setRGB(1, 0, 0);
+          LOG_WARN("System is LOCKED!");
+          break;
+        }
+        if (!sStatus.active) {
+          lcdPrint("  Chua bat dau  ", "  phien can!    ");
+          delay(1500);
+          stableCount = 0;
+          stableBeepDone = false;
+          lastStable = output;
+          state = WEIGHING;
+          break;
+        }
       }
       state = SENDING;
       break;
@@ -657,6 +740,10 @@ void loop() {
           lcd.print(buf);
 
           LOG_OK("Display → %s | %s", name.c_str(), buf);
+
+          // Đồng bộ lại rescan_count từ server trước khi chuyển sang trạng thái RESULT
+          SessionStatus sStatus = getSessionStatus();
+          currentRescanCount = sStatus.rescanCount;
         } else {
           setRGB(1, 0, 0);  // đỏ = lỗi
           startBeep(500, 1);
@@ -681,10 +768,52 @@ void loop() {
         ema = displayed = 0;
         stableCount = 0;
         stableBeepDone = false;
-        lcdPrint("  Place object  ", "  on scale...   ");
-        setRGB(0, 0, 0);
+        updateIdleDisplay(lastActive);
         state = IDLE;
         LOG_OK("Object removed → IDLE");
+        break;
+      }
+
+      // Khi vật vẫn ở trên bàn cân, định kỳ kiểm tra trạng thái từ server
+      static unsigned long lastResultCheck = 0;
+      if (now - lastResultCheck > 1500) {
+        lastResultCheck = now;
+        SessionStatus sStatus = getSessionStatus();
+        if (sStatus.locked) {
+          state = LOCKED;
+          lcdPrint("  HE THONG KHOA ", "  Cho nhan vien..");
+          setRGB(1, 0, 0);
+          LOG_WARN("System is LOCKED from RESULT state!");
+          break;
+        }
+
+        if (sStatus.rescanCount > currentRescanCount) {
+          LOG_OK("Rescan triggered! Server count=%d (local=%d)", sStatus.rescanCount, currentRescanCount);
+          currentRescanCount = sStatus.rescanCount;
+
+          // Phát 1 beep ngắn
+          startBeep(100, 1);
+
+          // Quay về WEIGHING để tự động thực hiện lại quá trình cân và nhận diện
+          stableCount = 0;
+          stableBeepDone = false;
+          lastStable = output;
+          state = WEIGHING;
+        }
+      }
+      break;
+
+    case LOCKED:
+      // Ở trạng thái LOCKED, bật LED đỏ và hiển thị màn hình khóa
+      static unsigned long lastLockCheck = 0;
+      if (now - lastLockCheck > 2000) {
+        lastLockCheck = now;
+        SessionStatus sStatus = getSessionStatus();
+        if (!sStatus.locked) {
+          LOG_OK("System UNLOCKED by employee!");
+          updateIdleDisplay(lastActive);
+          state = IDLE;
+        }
       }
       break;
   }

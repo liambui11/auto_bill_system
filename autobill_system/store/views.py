@@ -34,13 +34,34 @@ PRICE_LIST = {
     'Unknown': 0
 }
 
+_migrated = False
+
+def ensure_migrations():
+    global _migrated
+    if not _migrated:
+        try:
+            from django.core.management import call_command
+            call_command('migrate', interactive=False)
+            _migrated = True
+        except Exception as e:
+            print("Auto-migration failed:", e)
+
+
 # --- API CHO HARDWARE ESP32 (Pull từ Stream, đã RESIZE) ---
 @csrf_exempt
 def predict_and_add(request):
     if request.method == 'POST' or request.method == 'GET':
+        ensure_migrations()
         invoice = Invoice.objects.filter(status='OPEN').last()
         if not invoice:
             return JsonResponse({'error': 'No active session'}, status=403)
+
+        # Check if this is a new product scan or a rescan
+        if invoice.is_waiting_for_rescan:
+            invoice.is_waiting_for_rescan = False
+        else:
+            invoice.rescan_count = 0
+        invoice.save()
 
         weight = float(request.GET.get('weight', request.POST.get('weight', 0)))
         cam_ip = request.GET.get('cam_ip', request.POST.get('cam_ip', ''))
@@ -49,7 +70,7 @@ def predict_and_add(request):
             return JsonResponse({'error': 'Missing camera IP'}, status=400)
 
         detected_class = "Unknown"
-        stream_url = f"http://192.168.1.24:81/stream"
+        stream_url = f"http://{cam_ip}:81/stream"
 
         try:
             cap = cv2.VideoCapture(stream_url)
@@ -97,21 +118,16 @@ def predict_and_add(request):
         return JsonResponse({'error': 'Failed to fetch frame or process'}, status=500)
     return JsonResponse({'error': 'Invalid request'}, status=400)
 
-# --- LIVE STREAM (đã RESIZE) ---
+# --- LIVE STREAM (Bỏ qua xử lý AI để giảm tải server) ---
 def gen_frames(cam_ip):
-    stream_url = f"http://192.168.1.24:81/stream"
+    stream_url = f"http://{cam_ip}:81/stream"
     cap = cv2.VideoCapture(stream_url)
     while True:
         success, frame = cap.read()
         if not success:
             break
         else:
-            if model:
-                # ✅ RESIZE trước khi predict
-                frame_resized = cv2.resize(frame, (640, 640))
-                results = model.predict(frame_resized, conf=0.25, verbose=False)
-                frame = results[0].plot()
-
+            # Không chạy model ở đây để tránh treo server khi xem stream
             ret, buffer = cv2.imencode('.jpg', frame)
             frame = buffer.tobytes()
             yield (b'--frame\r\n'
@@ -126,14 +142,24 @@ def video_feed(request):
 
 def check_session_status(request):
     """API cho ESP32 kiểm tra trạng thái trước khi cân"""
+    ensure_migrations()
     invoice = Invoice.objects.filter(status__in=['OPEN', 'LOCKED']).last()
     active = invoice is not None and invoice.status == 'OPEN'
     locked = invoice.status == 'LOCKED' if invoice else False
-    return JsonResponse({'active': active, 'locked': locked})
+    rescan_count = invoice.rescan_count if invoice else 0
+    return JsonResponse({
+        'active': active,
+        'locked': locked,
+        'rescan_count': rescan_count
+    })
 
 # --- API CHO FRONTEND (Realtime Dashboard) ---
 def api_get_cart(request):
-    invoice = Invoice.objects.filter(status__in=['OPEN', 'LOCKED']).last()
+    ensure_migrations()
+    invoice_id = request.session.get('active_invoice_id')
+    invoice = None
+    if invoice_id:
+        invoice = Invoice.objects.filter(id=invoice_id, status__in=['OPEN', 'LOCKED']).first()
     if not invoice:
         return JsonResponse({'has_session': False})
 
@@ -159,12 +185,21 @@ def api_get_cart(request):
 
 # --- WEB CONTROLLERS ---
 def dashboard(request):
-    invoice = Invoice.objects.filter(status__in=['OPEN', 'LOCKED']).last()
+    ensure_migrations()
+    # Lấy hóa đơn đang OPEN hoặc LOCKED của phiên làm việc hiện tại trên trình duyệt
+    invoice_id = request.session.get('active_invoice_id')
+    invoice = None
+    if invoice_id:
+        invoice = Invoice.objects.filter(id=invoice_id, status__in=['OPEN', 'LOCKED']).first()
     return render(request, 'dashboard.html', {'invoice': invoice})
 
 def start_invoice(request):
+    # Đóng các hóa đơn cũ để dọn dẹp CSDL
     Invoice.objects.filter(status__in=['OPEN', 'LOCKED']).update(status='CLOSED')
-    Invoice.objects.create(status='OPEN')
+    # Tạo hóa đơn mới cho phiên làm việc này
+    invoice = Invoice.objects.create(status='OPEN')
+    # Lưu ID vào session của trình duyệt
+    request.session['active_invoice_id'] = invoice.id
     return redirect('dashboard')
 
 def delete_item(request, item_id):
@@ -177,24 +212,65 @@ def rescan_item(request, item_id):
     invoice = item.invoice
     item.delete()
     invoice.rescan_count += 1
+    invoice.is_waiting_for_rescan = True
     if invoice.rescan_count >= 3:
         invoice.status = 'LOCKED'
     invoice.save()
+    return redirect('dashboard')
+
+def reset_rescan_count(request):
+    invoice_id = request.session.get('active_invoice_id')
+    invoice = None
+    if invoice_id:
+        invoice = Invoice.objects.filter(id=invoice_id, status__in=['OPEN', 'LOCKED']).first()
+    if not invoice:
+        invoice = Invoice.objects.filter(status__in=['OPEN', 'LOCKED']).last()
+    
+    if invoice:
+        invoice.rescan_count = 0
+        invoice.is_waiting_for_rescan = False
+        invoice.status = 'OPEN'
+        invoice.save()
     return redirect('dashboard')
 
 def confirm_invoice(request, invoice_id):
     invoice = get_object_or_404(Invoice, id=invoice_id)
     invoice.status = 'CLOSED'
     invoice.save()
+    # Xóa khỏi session sau khi đã hoàn tất thanh toán
+    request.session.pop('active_invoice_id', None)
+    return redirect('dashboard')
+
+def cancel_invoice(request, invoice_id):
+    invoice = get_object_or_404(Invoice, id=invoice_id)
+    # Hủy phiên thì xóa sạch các sản phẩm đã quét của hóa đơn này
+    invoice.items.all().delete()
+    invoice.status = 'CLOSED'
+    invoice.save()
+    request.session.pop('active_invoice_id', None)
     return redirect('dashboard')
 
 # --- API TEST: UPLOAD ẢNH (đã RESIZE) ---
 @csrf_exempt
 def test_predict_upload(request):
     if request.method == 'POST':
-        invoice = Invoice.objects.filter(status='OPEN').last()
+        ensure_migrations()
+        invoice_id = request.session.get('active_invoice_id')
+        invoice = None
+        if invoice_id:
+            invoice = Invoice.objects.filter(id=invoice_id, status='OPEN').first()
+        if not invoice:
+            invoice = Invoice.objects.filter(status='OPEN').last()
+            
         if not invoice:
             return JsonResponse({'error': 'No active session. Please click "Start Invoice" first.'}, status=403)
+
+        # Check if this is a new product scan or a rescan
+        if invoice.is_waiting_for_rescan:
+            invoice.is_waiting_for_rescan = False
+        else:
+            invoice.rescan_count = 0
+        invoice.save()
 
         weight = float(request.POST.get('weight', 0.5))
         img_file = request.FILES.get('image')

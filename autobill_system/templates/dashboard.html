@@ -274,12 +274,119 @@
         
         <!-- Locked Overlay (Hidden by default) -->
         <div id="locked-fullscreen" class="locked-overlay d-none">
-            <div class="locked-card">
-                <i class="fas fa-user-shield fa-5x text-danger mb-4"></i>
-                <h2 class="fw-800 text-danger mb-3">Yêu cầu hỗ trợ</h2>
-                <p class="text-secondary mb-4">Hệ thống đã quét lại quá 03 lần nhưng không thành công. Vui lòng đợi nhân viên hỗ trợ tại quầy.</p>
-                <div class="d-flex gap-2 justify-content-center">
+            <div class="locked-card text-center p-5" style="max-width: 440px; width: 90%;">
+                <div class="mb-4">
+                    <div class="mx-auto bg-danger bg-opacity-10 text-danger rounded-circle d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                        <i class="fas fa-user-shield fa-2x"></i>
+                    </div>
+                </div>
+                <h3 class="fw-800 text-danger mb-2">Yêu cầu hỗ trợ</h3>
+                <p class="text-secondary small mb-4 px-2">Hệ thống đã quét lại quá 03 lần lỗi. Vui lòng liên hệ nhân viên hỗ trợ tại quầy.</p>
+                
+                <div class="mb-4">
                     <span class="badge bg-danger rounded-pill px-3 py-2">Mã lỗi: RESCAN_LIMIT_REACHED</span>
+                </div>
+
+                <!-- Ô nhập mật khẩu xác thực nhân viên -->
+                <div class="mb-4 text-start">
+                    <label for="admin-password" class="form-label small fw-bold text-muted ps-1">Xác thực quyền Nhân viên:</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0 border-2" style="border-radius: 12px 0 0 12px; border-color: #e2e8f0;">
+                            <i class="fas fa-key text-secondary"></i>
+                        </span>
+                        <input type="password" id="admin-password" class="form-control bg-light border-start-0 border-2 py-2 px-3" style="border-radius: 0 12px 12px 0; border-color: #e2e8f0; font-weight: 600;" placeholder="Nhập mật khẩu..." onkeydown="if(event.key==='Enter') document.getElementById('btn-unlock-primary').click()">
+                    </div>
+                    <div id="password-error" class="text-danger small mt-2 ps-1 d-none">
+                        <i class="fas fa-exclamation-circle"></i> Mật khẩu không chính xác!
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button id="btn-unlock-primary" onclick="handleUnlock(event, '{% url 'reset_rescan_count' %}')" class="btn btn-success-p btn-premium btn-lg w-100 justify-content-center">
+                        <i class="fas fa-lock-open"></i> Mở khóa & Tiếp tục quét
+                    </button>
+                    <button onclick="handleUnlock(event, '{% url 'start_invoice' %}')" class="btn btn-outline-secondary btn-premium btn-lg w-100 justify-content-center border-2" style="border-radius: 14px; font-weight: 600;">
+                        <i class="fas fa-plus-circle"></i> Hủy & Tạo hóa đơn mới
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Invoice Details Overlay (Hidden by default) -->
+        <div id="invoice-details-overlay" class="locked-overlay d-none" style="background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px);">
+            <div class="locked-card text-start p-5" style="max-width: 550px; width: 95%; max-height: 90vh; overflow-y: auto;">
+                <div class="text-center mb-4">
+                    <div class="mx-auto bg-success bg-opacity-10 text-success rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 70px; height: 70px;">
+                        <i class="fas fa-file-invoice-dollar fa-2x"></i>
+                    </div>
+                    <h3 class="fw-800 text-dark mb-1">Chi Tiết Hóa Đơn</h3>
+                    <p class="text-muted small">Mã phiên: #{{ invoice.id|slice:":8" }}</p>
+                </div>
+                
+                <div class="border-bottom pb-3 mb-4">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted small">Thời gian hoàn tất:</span>
+                        <span class="fw-bold text-dark small" id="invoice-detail-date">-</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted small">Trạng thái:</span>
+                        <span class="badge bg-warning text-dark fw-bold rounded-pill px-3">Chờ xác nhận</span>
+                    </div>
+                </div>
+
+                <h6 class="fw-800 text-dark mb-3">DANH SÁCH SẢN PHẨM</h6>
+                <div id="invoice-detail-items" class="mb-4" style="max-height: 200px; overflow-y: auto; border: 1px solid #f1f5f9; border-radius: 12px; padding: 12px;">
+                    <!-- JS RENDER ITEMS HERE -->
+                </div>
+
+                <div class="bg-light p-4 rounded-4 mb-4">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-secondary small">Tổng số lượng:</span>
+                        <span class="fw-bold text-dark" id="invoice-detail-count">0</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                        <span class="fw-800 text-dark">TỔNG CỘNG:</span>
+                        <span class="fw-900 text-primary fs-4" id="invoice-detail-total">0 ₫</span>
+                    </div>
+                </div>
+
+                <div class="row g-2">
+                    <div class="col-6">
+                        <button onclick="hideInvoiceDetails()" class="btn btn-outline-secondary btn-premium w-100 justify-content-center" style="border-radius: 14px; font-weight: 600; border-width: 2px;">
+                            <i class="fas fa-arrow-left"></i> Quay lại
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <a href="{% url 'confirm_invoice' invoice.id %}" class="btn btn-success-p btn-premium w-100 justify-content-center" style="border-radius: 14px; font-weight: 600;">
+                            <i class="fas fa-check"></i> Xác nhận
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Confirm Modal (Xác nhận hủy phiên) -->
+        <div id="custom-confirm-overlay" class="locked-overlay d-none" style="background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(6px); z-index: 10000;">
+            <div class="locked-card text-center p-5 animate-fade" style="max-width: 440px; width: 90%; border-top: 5px solid var(--danger); border-radius: 24px; background: white; color: var(--dark); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.55);">
+                <div class="mb-4">
+                    <div class="mx-auto bg-danger bg-opacity-10 text-danger rounded-circle d-flex align-items-center justify-content-center" style="width: 75px; height: 75px;">
+                        <i class="fas fa-trash-alt fa-2x"></i>
+                    </div>
+                </div>
+                <h4 class="fw-800 text-dark mb-2">Hủy Phiên Làm Việc?</h4>
+                <p class="text-secondary small mb-4 px-2" style="line-height: 1.6;">Hành động này sẽ đóng phiên làm việc hiện tại và hủy toàn bộ giỏ hàng đang quét. Bạn có chắc chắn muốn hủy không?</p>
+                
+                <div class="row g-2">
+                    <div class="col-6">
+                        <button onclick="closeConfirmCancel()" class="btn btn-outline-secondary btn-premium w-100 justify-content-center" style="border-radius: 14px; font-weight: 600; border-width: 2px;">
+                            Không, tiếp tục
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <a href="{% url 'cancel_invoice' invoice.id %}" class="btn btn-danger btn-premium w-100 justify-content-center" style="background: var(--danger); border: none; color: white; border-radius: 14px; font-weight: 600;">
+                            Có, hủy phiên
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -344,9 +451,12 @@
                                 <span class="text-success fw-bold">0 ₫</span>
                             </div>
                             
-                            <a href="{% url 'confirm_invoice' invoice.id %}" class="btn btn-success-p btn-premium w-100 py-3 justify-content-center shadow-lg">
+                            <button onclick="showInvoiceDetails(event)" class="btn btn-success-p btn-premium w-100 py-3 justify-content-center shadow-lg">
                                 <i class="fas fa-check-double"></i> HOÀN TẤT & THANH TOÁN
-                            </a>
+                            </button>
+                            <button onclick="confirmCancelSession(event)" class="btn btn-outline-danger btn-premium w-100 py-2 mt-3 justify-content-center" style="border-radius: 14px; font-weight: 600; border-width: 2px;">
+                                <i class="fas fa-times-circle"></i> HỦY PHIÊN LÀM VIỆC
+                            </button>
                         </div>
                     </div>
                     
@@ -374,6 +484,8 @@
 
 {% if invoice and invoice.status != 'CLOSED' %}
 <script>
+    let latestCartData = null;
+
     function formatMoney(amount) {
         return new Intl.NumberFormat('vi-VN').format(amount);
     }
@@ -383,6 +495,7 @@
             .then(res => res.json())
             .then(data => {
                 if (!data.has_session) return;
+                latestCartData = data;
 
                 // 1. Cập nhật Status Pill & Locked Overlay
                 const statusPill = document.getElementById('session-status-pill');
@@ -466,8 +579,137 @@
     // Polling mỗi 1.5 giây để cảm giác real-time hơn
     setInterval(updateCart, 1500);
     updateCart();
+
+    // Hàm xác thực mật khẩu mở khóa (Password: 123456)
+    function handleUnlock(event, targetUrl) {
+        event.preventDefault();
+        const pwdInput = document.getElementById('admin-password');
+        const errDiv = document.getElementById('password-error');
+        
+        if (pwdInput.value === '123456') {
+            errDiv.classList.add('d-none');
+            pwdInput.classList.remove('is-invalid');
+            window.location.href = targetUrl;
+        } else {
+            errDiv.classList.remove('d-none');
+            pwdInput.classList.add('is-invalid');
+            pwdInput.value = '';
+            pwdInput.focus();
+        }
+    }
+
+    // Hàm hiển thị màn hình Chi Tiết Hóa Đơn trước khi thanh toán
+    function showInvoiceDetails(event) {
+        if (event) event.preventDefault();
+        
+        if (!latestCartData || !latestCartData.items || latestCartData.items.length === 0) {
+            showCustomAlert("Giỏ hàng trống", "Giỏ hàng hiện tại đang trống. Vui lòng đặt sản phẩm lên cân để nhận diện trước khi tiến hành thanh toán!");
+            return;
+        }
+
+        // Kiểm tra xem có sản phẩm nào chưa nhận diện được (Unknown) hay không
+        const hasUnknown = latestCartData.items.some(item => item.product_name.toLowerCase() === 'unknown');
+        if (hasUnknown) {
+            showCustomAlert("Sản phẩm chưa nhận diện", "Trong giỏ hàng đang tồn tại mặt hàng chưa được nhận diện (Unknown). Vui lòng quét lại hoặc xóa sản phẩm này trước khi thanh toán để tránh sai sót đơn hàng.");
+            return;
+        }
+        
+        // 1. Tạo và định dạng thời gian hoàn tất hiện tại
+        const now = new Date();
+        const formattedDate = now.toLocaleDateString('vi-VN') + ' ' + now.toLocaleTimeString('vi-VN');
+        document.getElementById('invoice-detail-date').innerText = formattedDate;
+        
+        // 2. Render danh sách sản phẩm trong hóa đơn chi tiết (Cộng dồn các sản phẩm cùng tên)
+        const groupedMap = {};
+        latestCartData.items.forEach(item => {
+            const name = item.product_name.toUpperCase();
+            if (groupedMap[name]) {
+                groupedMap[name].weight += item.weight;
+                groupedMap[name].price += item.price;
+                groupedMap[name].count += 1;
+            } else {
+                groupedMap[name] = {
+                    product_name: item.product_name,
+                    weight: item.weight,
+                    price: item.price,
+                    count: 1
+                };
+            }
+        });
+
+        const groupedItems = Object.values(groupedMap);
+
+        const itemsContainer = document.getElementById('invoice-detail-items');
+        let itemsHtml = '';
+        groupedItems.forEach(item => {
+            itemsHtml += `
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom animate-fade">
+                    <div>
+                        <div class="fw-800 text-dark small">
+                            ${item.product_name.toUpperCase()} 
+                            ${item.count > 1 ? `<span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-2 py-1 ms-1" style="font-size: 0.7rem;">x${item.count}</span>` : ''}
+                        </div>
+                        <div class="text-muted small" style="font-size: 0.75rem;">Tổng KL: ${item.weight.toFixed(3)} kg</div>
+                    </div>
+                    <div class="fw-800 text-primary small">${formatMoney(item.price)} ₫</div>
+                </div>
+            `;
+        });
+        itemsContainer.innerHTML = itemsHtml;
+        
+        // 3. Cập nhật Số lượng & Tổng tiền
+        document.getElementById('invoice-detail-count').innerText = groupedItems.length + ' loại sản phẩm';
+        document.getElementById('invoice-detail-total').innerText = formatMoney(latestCartData.total_amount) + ' ₫';
+        
+        // 4. Hiển thị Overlay hóa đơn chi tiết
+        document.getElementById('invoice-details-overlay').classList.remove('d-none');
+    }
+
+    // Hàm đóng màn hình Chi Tiết Hóa Đơn để quay lại giỏ hàng
+    function hideInvoiceDetails() {
+        document.getElementById('invoice-details-overlay').classList.add('d-none');
+    }
+
+    // Các hàm kiểm soát Custom Alert
+    function showCustomAlert(title, message) {
+        document.getElementById('custom-alert-title').innerText = title;
+        document.getElementById('custom-alert-message').innerText = message;
+        document.getElementById('custom-alert-overlay').classList.remove('d-none');
+    }
+
+    function closeCustomAlert() {
+        document.getElementById('custom-alert-overlay').classList.add('d-none');
+    }
+
+    // Các hàm kiểm soát Custom Confirm (Hủy phiên)
+    function confirmCancelSession(event) {
+        if (event) event.preventDefault();
+        document.getElementById('custom-confirm-overlay').classList.remove('d-none');
+    }
+
+    function closeConfirmCancel() {
+        document.getElementById('custom-confirm-overlay').classList.add('d-none');
+    }
 </script>
 {% endif %}
+
+<!-- Custom Alert Modal (Cảnh báo tùy chỉnh) -->
+<div id="custom-alert-overlay" class="locked-overlay d-none" style="background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(6px); z-index: 10000;">
+    <div class="locked-card text-center p-5 animate-fade" style="max-width: 420px; width: 90%; border-top: 5px solid var(--danger); border-radius: 24px; background: white; color: var(--dark); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.55);">
+        <div class="mb-4">
+            <div class="mx-auto bg-danger bg-opacity-10 text-danger rounded-circle d-flex align-items-center justify-content-center" style="width: 75px; height: 75px;">
+                <i class="fas fa-exclamation-triangle fa-2x"></i>
+            </div>
+        </div>
+        <h4 class="fw-800 text-dark mb-2" id="custom-alert-title">Cảnh báo</h4>
+        <p class="text-secondary small mb-4 px-2" style="line-height: 1.6;" id="custom-alert-message">Nội dung thông báo...</p>
+        <button onclick="closeCustomAlert()" class="btn btn-premium w-100 justify-content-center" style="background: var(--danger); border: none; color: white; border-radius: 14px; font-weight: 600; py-3">
+            Đã hiểu
+        </button>
+    </div>
+</div>
+
+
 
 </body>
 </html>

@@ -4,6 +4,7 @@ class Invoice(models.Model):
     STATUS_CHOICES = [('OPEN', 'Open'), ('CLOSED', 'Closed'), ('LOCKED', 'Locked (Needs Support)')]
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='OPEN')
     rescan_count = models.IntegerField(default=0)
+    is_waiting_for_rescan = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
 class InvoiceItem(models.Model):

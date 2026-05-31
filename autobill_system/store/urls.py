@@ -6,11 +6,13 @@ urlpatterns = [
     path('start/', views.start_invoice, name='start_invoice'),
     path('delete/<int:item_id>/', views.delete_item, name='delete_item'),
     path('rescan/<int:item_id>/', views.rescan_item, name='rescan_item'),
+    path('reset-rescan/', views.reset_rescan_count, name='reset_rescan_count'),
     path('confirm/<int:invoice_id>/', views.confirm_invoice, name='confirm_invoice'),
+    path('cancel/<int:invoice_id>/', views.cancel_invoice, name='cancel_invoice'),
     
     # API phần cứng (Khớp tuyệt đối với code ESP32)
-    path('predict', views.predict_and_add, name='api_predict'),
-    path('session/status', views.check_session_status, name='api_session_status'),
+    path('predict/', views.predict_and_add, name='api_predict'),
+    path('session/status/', views.check_session_status, name='api_session_status'),
     
     # API Web Dashboard
     path('api/cart/data/', views.api_get_cart, name='api_get_cart'),
