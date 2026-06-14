@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Autobill - Sandbox AI Test</title>
+    
+    <!-- Google Fonts & Bootstrap 5 + Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --dark: #0f172a;
+            --bg-soft: #f8fafc;
+            --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            --card-shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            transition: all 0.2s ease-in-out;
+        }
+
+        body {
+            background-color: var(--bg-soft);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.04) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.04) 0px, transparent 50%);
+            min-height: 100vh;
+            color: var(--dark);
+        }
+
+        /* Navbar */
+        .navbar {
+            background: rgba(255, 255, 255, 0.8) !important;
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            padding: 1rem 0;
+        }
+        .navbar-brand {
+            font-weight: 800;
+            font-size: 1.5rem;
+            color: var(--dark) !important;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .brand-icon {
+            background: linear-gradient(135deg, var(--primary), #818cf8);
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+
+        /* Cards */
+        .card-premium {
+            background: white;
+            border: 1px solid rgba(0,0,0,0.03);
+            border-radius: 20px;
+            box-shadow: var(--card-shadow);
+        }
+        .card-premium:hover {
+            box-shadow: var(--card-shadow-hover);
+        }
+
+        /* Sidebar Image List */
+        .image-list-container {
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+            border-radius: 16px;
+        }
+        .image-item {
+            cursor: pointer;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            border: 1px solid transparent;
+            background: rgba(248, 250, 252, 0.6);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .image-item:hover {
+            background: rgba(241, 245, 249, 1);
+            transform: translateX(4px);
+        }
+        .image-item.active {
+            background: rgba(79, 70, 229, 0.08);
+            border-color: rgba(79, 70, 229, 0.2);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .image-item-thumb {
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+        .image-item-info {
+            flex-grow: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 0.85rem;
+        }
+
+        /* Buttons */
+        .btn-premium {
+            border-radius: 14px;
+            padding: 10px 24px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-primary-p { background: var(--primary); border: none; color: white; }
+        .btn-primary-p:hover { background: var(--primary-hover); transform: translateY(-2px); }
+        .btn-outline-p { border: 2px solid #e2e8f0; background: white; color: var(--dark); }
+        .btn-outline-p:hover { border-color: var(--primary); color: var(--primary); transform: translateY(-2px); }
+
+        /* Search input */
+        .search-box {
+            position: relative;
+            margin-bottom: 15px;
+        }
+        .search-box i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+        }
+        .search-box input {
+            padding-left: 40px;
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+            font-size: 0.9rem;
+        }
+        .search-box input:focus {
+            border-color: var(--primary);
+            box-shadow: none;
+        }
+
+        /* Image Display Frame */
+        .preview-frame {
+            border: 2px dashed #e2e8f0;
+            border-radius: 16px;
+            padding: 15px;
+            background: #fafafa;
+            position: relative;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .preview-img {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 12px;
+            object-fit: contain;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        /* Results Display */
+        .progress-bar-confidence {
+            height: 8px;
+            border-radius: 10px;
+            background-color: rgba(79, 70, 229, 0.1);
+        }
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--primary), #818cf8);
+        }
+
+        /* Animation */
+        .animate-fade {
+            animation: fadeIn 0.4s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        footer {
+            margin-top: 4rem;
+            padding-bottom: 2rem;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar sticky-top">
+    <div class="container">
+        <a class="navbar-brand" href="{% url 'dashboard' %}">
+            <div class="brand-icon"><i class="fas fa-bolt"></i></div>
+            <span>Autobill <span class="fw-light text-muted">Sandbox</span></span>
+        </a>
+        <div class="d-flex align-items-center gap-3">
+            <a href="{% url 'dashboard' %}" class="btn btn-outline-p btn-premium btn-sm">
+                <i class="fas fa-arrow-left"></i> Quay lại Dashboard
+            </a>
+        </div>
+    </div>
+</nav>
+
+<div class="container py-5">
+    <div class="row g-4">
+        <!-- Danh sách ảnh bên trái -->
+        <div class="col-lg-4">
+            <div class="card-premium p-4">
+                <h5 class="fw-800 mb-3"><i class="fas fa-images text-primary me-2"></i>Ảnh đã chụp trong media</h5>
+                
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="image-search" class="form-control" placeholder="Tìm kiếm ảnh...">
+                </div>
+
+                <div class="image-list-container" id="image-list">
+                    {% for file in image_files %}
+                        <div class="image-item" data-filename="{{ file }}" onclick="selectImage('{{ file }}')">
+                            <img class="image-item-thumb" src="/media/captured_images/{{ file }}" alt="Thumb">
+                            <div class="image-item-info">
+                                <div class="fw-bold text-dark" style="font-size: 0.8rem;">{{ file }}</div>
+                                <span class="text-muted small">Nhấn để xem & test</span>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="text-center py-5 text-muted">
+                            <i class="fas fa-folder-open fa-3x mb-3 opacity-30"></i>
+                            <p class="mb-0 small">Không tìm thấy ảnh test nào trong thư mục `media/captured_images/`</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Màn hình hiển thị và nhận diện bên phải -->
+        <div class="col-lg-8">
+            <div class="card-premium p-4 h-100" id="sandbox-main">
+                <!-- Empty State (Chưa chọn ảnh) -->
+                <div id="sandbox-empty" class="text-center py-5 my-auto">
+                    <i class="fas fa-wand-magic-sparkles fa-4x text-primary opacity-20 mb-3"></i>
+                    <h4 class="fw-800">Trình kiểm thử nhận diện AI</h4>
+                    <p class="text-muted px-lg-5">Vui lòng chọn một hình ảnh từ danh sách bên trái và đặt cân nặng giả định để chạy dự đoán mô hình AI YOLOv8 mà không ảnh hưởng tới hóa đơn bán hàng.</p>
+                </div>
+
+                <!-- Giao diện làm việc (Ẩn mặc định) -->
+                <div id="sandbox-workspace" class="d-none animate-fade">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="fw-bold mb-2">Ảnh gốc đầu vào:</div>
+                            <div class="preview-frame">
+                                <img id="original-preview" class="preview-img" src="" alt="Original Image">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="fw-bold mb-2">Kết quả nhận diện (YOLOv8):</div>
+                            <div class="preview-frame" id="plotted-frame-container">
+                                <div id="no-plotted-message" class="text-muted text-center small p-4">
+                                    <i class="fas fa-microchip fa-2x mb-2 opacity-50"></i>
+                                    <div>Chưa chạy dự đoán</div>
+                                </div>
+                                <img id="plotted-preview" class="preview-img d-none" src="" alt="Plotted Image">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bảng điều khiển giả lập -->
+                    <div class="bg-light p-4 rounded-4 my-4">
+                        <div class="row align-items-center g-3">
+                            <div class="col-md-7">
+                                <label for="weight-range" class="form-label fw-bold d-flex justify-content-between mb-2">
+                                    <span>Giả lập cân nặng (kg):</span>
+                                    <span id="weight-label" class="text-primary fw-900">1.000 kg</span>
+                                </label>
+                                <input type="range" class="form-range" id="weight-range" min="0.005" max="5.0" step="0.005" value="1.0" oninput="updateWeightLabel(this.value)">
+                            </div>
+                            <div class="col-md-5 d-flex align-items-end justify-content-md-end">
+                                <button id="btn-predict" onclick="runPrediction()" class="btn btn-primary-p btn-premium w-100 py-3">
+                                    <i class="fas fa-play"></i> CHẠY NHẬN DIỆN AI
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Kết quả chi tiết -->
+                    <div id="sandbox-results" class="d-none animate-fade">
+                        <h6 class="fw-800 text-dark mb-3"><i class="fas fa-list-check text-success me-2"></i>CHI TIẾT VẬT THỂ PHÁT HIỆN</h6>
+                        <div class="table-responsive">
+                            <table class="table align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Vật thể (Nhãn)</th>
+                                        <th>Độ tin cậy (Confidence)</th>
+                                        <th>Đơn giá (VND/kg)</th>
+                                        <th class="text-end">Thành tiền giả lập</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="results-table-body">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer>
+    <div class="container">
+        <p class="mb-1 fw-bold text-dark">Autobill AI Sandbox Page</p>
+    </div>
+</footer>
+
+<script>
+    let selectedFilename = null;
+    let simulatedWeight = 1.0;
+
+    // Search filter
+    document.getElementById('image-search').addEventListener('input', function(e) {
+        const query = e.target.value.toLowerCase();
+        const items = document.querySelectorAll('#image-list .image-item');
+        items.forEach(item => {
+            const name = item.dataset.filename.toLowerCase();
+            if (name.includes(query)) {
+                item.classList.remove('d-none');
+            } else {
+                item.classList.add('d-none');
+            }
+        });
+    });
+
+    function updateWeightLabel(val) {
+        simulatedWeight = parseFloat(val);
+        document.getElementById('weight-label').innerText = simulatedWeight.toFixed(3) + ' kg';
+        
+        // Cập nhật lại giá tiền trong bảng nếu đã chạy xong prediction trước đó
+        const rows = document.querySelectorAll('#results-table-body tr');
+        rows.forEach(row => {
+            const unitPrice = parseFloat(row.dataset.unitprice);
+            const totalCell = row.querySelector('.total-cell');
+            if (totalCell && !isNaN(unitPrice)) {
+                const total = unitPrice * simulatedWeight;
+                totalCell.innerText = formatMoney(total) + ' ₫';
+            }
+        });
+    }
+
+    function formatMoney(amount) {
+        return new Intl.NumberFormat('vi-VN').format(amount);
+    }
+
+    function selectImage(filename) {
+        selectedFilename = filename;
+        
+        // Active status style in list
+        document.querySelectorAll('#image-list .image-item').forEach(item => {
+            if (item.dataset.filename === filename) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        });
+
+        // Hide empty screen & show workspace
+        document.getElementById('sandbox-empty').classList.add('d-none');
+        document.getElementById('sandbox-workspace').classList.remove('d-none');
+
+        // Reset plotted state
+        document.getElementById('plotted-preview').classList.add('d-none');
+        document.getElementById('no-plotted-message').classList.remove('d-none');
+        document.getElementById('sandbox-results').classList.add('d-none');
+
+        // Set original preview image
+        document.getElementById('original-preview').src = '/media/captured_images/' + filename;
+    }
+
+    function runPrediction() {
+        if (!selectedFilename) return;
+
+        const btn = document.getElementById('btn-predict');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang nhận diện...';
+
+        const formData = new FormData();
+        formData.append('filename', selectedFilename);
+        formData.append('weight', simulatedWeight);
+
+        fetch('/sandbox/predict/', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-play"></i> CHẠY NHẬN DIỆN AI';
+
+            if (data.error) {
+                alert('Có lỗi xảy ra: ' + data.error);
+                return;
+            }
+
+            // Show plotted preview image
+            document.getElementById('no-plotted-message').classList.add('d-none');
+            const plottedImg = document.getElementById('plotted-preview');
+            plottedImg.src = data.plotted_url + '?t=' + new Date().getTime(); // Anti cache
+            plottedImg.classList.remove('d-none');
+
+            // Render results details table
+            const tbody = document.getElementById('results-table-body');
+            tbody.innerHTML = '';
+
+            if (data.detections.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-4">
+                            Không phát hiện vật thể nào có độ tự tin >= 0.25
+                        </td>
+                    </tr>
+                `;
+            } else {
+                data.detections.forEach(det => {
+                    const percent = Math.round(det.confidence * 100);
+                    tbody.innerHTML += `
+                        <tr class="animate-fade" data-unitprice="${det.unit_price}">
+                            <td><span class="badge bg-primary px-3 py-2 text-uppercase">${det.class}</span></td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="flex-grow-1 progress-bar-confidence">
+                                        <div class="progress-bar-fill" style="width: ${percent}%;"></div>
+                                    </div>
+                                    <span class="small fw-bold">${percent}%</span>
+                                </div>
+                            </td>
+                            <td class="fw-semibold">${formatMoney(det.unit_price)} ₫</td>
+                            <td class="text-end fw-bold text-success total-cell">${formatMoney(det.total_price)} ₫</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            document.getElementById('sandbox-results').classList.remove('d-none');
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-play"></i> CHẠY NHẬN DIỆN AI';
+            console.error("AI predict error:", err);
+            alert('Lỗi kết nối server.');
+        });
+    }
+</script>
+</body>
+</html>

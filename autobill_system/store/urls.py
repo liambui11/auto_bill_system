@@ -18,4 +18,8 @@ urlpatterns = [
     path('api/cart/data/', views.api_get_cart, name='api_get_cart'),
     path('video_feed/', views.video_feed, name='video_feed'),
     path('test/upload/', views.test_predict_upload, name='test_upload'),
+    
+    # Sandbox Test Images
+    path('sandbox/', views.sandbox, name='sandbox'),
+    path('sandbox/predict/', views.sandbox_predict, name='sandbox_predict'),
 ]

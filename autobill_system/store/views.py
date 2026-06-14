@@ -23,14 +23,28 @@ else:
     print(f"❌ Model file not found at {model_path}")
 
 PRICE_LIST = {
-    'lemon': 35000, 
-    'chili': 40000, 
-    'banana': 25000, 
-    'tomato': 30000, 
-    'apple': 50000, 
-    'grapes': 90000, 
-    'raspberry': 120000, 
-    'blackberries': 150000,
+    'apple': 50000,
+    'banana': 25000,
+    'bell_pepper': 60000,
+    'cabbage': 15000,
+    'carrot': 20000,
+    'chilli_pepper': 45000,
+    'corn': 18000,
+    'cucumber': 22000,
+    'eggplant': 25000,
+    'garlic': 70000,
+    'grape': 90000,
+    'kiwi': 120000,
+    'lemon': 35000,
+    'lettuce': 30000,
+    'mango': 40000,
+    'onion': 25000,
+    'orange': 35000,
+    'pineapple': 30000,
+    'potato': 20000,
+    'sweetpotato': 25000,
+    'tomato': 30000,
+    'watermelon': 15000,
     'Unknown': 0
 }
 
@@ -89,8 +103,6 @@ def predict_and_add(request):
                 if len(results[0].boxes) > 0:
                     class_id = int(results[0].boxes.cls[0].item())
                     detected_class = model.names[class_id]
-                    if detected_class.endswith('-bag'):
-                        detected_class = detected_class.replace('-bag', '')
 
                 unit_price = PRICE_LIST.get(detected_class, 0)
                 total_price = unit_price * weight
@@ -299,8 +311,6 @@ def test_predict_upload(request):
                     class_id = int(results[0].boxes.cls[0].item())
                     detected_class = model.names[class_id]
                     print("Detected raw:", detected_class)
-                    if detected_class.endswith('-bag'):
-                        detected_class = detected_class.replace('-bag', '')
 
                 unit_price = PRICE_LIST.get(detected_class, 0)
                 total_price = unit_price * weight
@@ -328,3 +338,106 @@ def test_predict_upload(request):
             return JsonResponse({'error': str(e)}, status=500)
 
     return render(request, 'test_upload.html')
+
+
+def sandbox(request):
+    """
+    Renders the sandbox test page, listing all images in media/captured_images/
+    """
+    import os
+    from django.conf import settings
+    
+    images_dir = os.path.join(settings.MEDIA_ROOT, 'captured_images')
+    image_files = []
+    
+    if os.path.exists(images_dir):
+        files = os.listdir(images_dir)
+        # Filter for common image formats
+        image_files = [f for f in files if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
+        image_files.sort(reverse=True)
+        
+    return render(request, 'sandbox.html', {'image_files': image_files})
+
+
+@csrf_exempt
+def sandbox_predict(request):
+    """
+    Runs the YOLO model on the selected image from media/captured_images/
+    without creating or saving any invoice/invoice item.
+    """
+    if request.method == 'POST':
+        import os
+        import cv2
+        import numpy as np
+        from django.conf import settings
+        from django.http import JsonResponse
+        
+        filename = request.POST.get('filename')
+        weight = float(request.POST.get('weight', 1.0)) # simulated weight in kg
+        
+        if not filename:
+            return JsonResponse({'error': 'No filename provided'}, status=400)
+            
+        img_path = os.path.join(settings.MEDIA_ROOT, 'captured_images', filename)
+        if not os.path.exists(img_path):
+            return JsonResponse({'error': 'Image file does not exist'}, status=404)
+            
+        try:
+            # Read the image
+            frame = cv2.imread(img_path)
+            if frame is None:
+                return JsonResponse({'error': 'Failed to read image file'}, status=400)
+                
+            if not model:
+                return JsonResponse({'error': 'AI model is not loaded'}, status=500)
+                
+            # Resize and run model prediction
+            frame_resized = cv2.resize(frame, (640, 640))
+            results = model.predict(frame_resized, conf=0.25, verbose=False)
+            
+            # Plot the predictions on the image
+            plotted_frame = results[0].plot()
+            
+            # Ensure output directory for sandbox results exists
+            sandbox_dir = os.path.join(settings.MEDIA_ROOT, 'sandbox_results')
+            os.makedirs(sandbox_dir, exist_ok=True)
+            
+            # Save the plotted image
+            out_filename = f"plotted_{filename}"
+            out_path = os.path.join(sandbox_dir, out_filename)
+            cv2.imwrite(out_path, plotted_frame)
+            
+            # Extract detections
+            detections = []
+            boxes = results[0].boxes
+            for i in range(len(boxes)):
+                class_id = int(boxes.cls[i].item())
+                confidence = float(boxes.conf[i].item())
+                detected_class = model.names[class_id]
+                
+                # Strip '-bag' just in case
+                if detected_class.endswith('-bag'):
+                    detected_class = detected_class.replace('-bag', '')
+                    
+                unit_price = PRICE_LIST.get(detected_class, 0)
+                total_price = unit_price * weight
+                
+                detections.append({
+                    'class': detected_class,
+                    'confidence': confidence,
+                    'unit_price': unit_price,
+                    'total_price': total_price
+                })
+                
+            # Return result details
+            return JsonResponse({
+                'status': 'success',
+                'original_url': f"{settings.MEDIA_URL}captured_images/{filename}",
+                'plotted_url': f"{settings.MEDIA_URL}sandbox_results/{out_filename}",
+                'detections': detections
+            })
+            
+        except Exception as e:
+            return JsonResponse({'error': f"Processing error: {str(e)}"}, status=500)
+            
+    return JsonResponse({'error': 'Only POST method is allowed'}, status=400)
