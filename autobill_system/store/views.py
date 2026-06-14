@@ -6,6 +6,7 @@ from django.core.files.base import ContentFile
 from django.http import JsonResponse, StreamingHttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
 from ultralytics import YOLO
 from .models import Invoice, InvoiceItem
 
@@ -268,7 +269,7 @@ def api_invoice_history(request):
             
         data.append({
             'id': inv.id,
-            'created_at': inv.created_at.strftime('%d/%m/%Y %H:%M:%S'),
+            'created_at': timezone.localtime(inv.created_at).strftime('%d/%m/%Y %H:%M:%S'),
             'rescan_count': inv.rescan_count,
             'items': items,
             'total_amount': total_amount,
