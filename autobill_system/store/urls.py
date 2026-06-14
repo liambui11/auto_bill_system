@@ -9,6 +9,7 @@ urlpatterns = [
     path('reset-rescan/', views.reset_rescan_count, name='reset_rescan_count'),
     path('confirm/<int:invoice_id>/', views.confirm_invoice, name='confirm_invoice'),
     path('cancel/<int:invoice_id>/', views.cancel_invoice, name='cancel_invoice'),
+    path('clear-last-paid/', views.clear_last_paid, name='clear_last_paid'),
     
     # API phần cứng (Khớp tuyệt đối với code ESP32)
     path('predict/', views.predict_and_add, name='api_predict'),
@@ -16,6 +17,7 @@ urlpatterns = [
     
     # API Web Dashboard
     path('api/cart/data/', views.api_get_cart, name='api_get_cart'),
+    path('api/history/', views.api_invoice_history, name='api_invoice_history'),
     path('video_feed/', views.video_feed, name='video_feed'),
     path('test/upload/', views.test_predict_upload, name='test_upload'),
     

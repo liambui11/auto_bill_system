@@ -48,6 +48,58 @@ PRICE_LIST = {
     'Unknown': 0
 }
 
+VIETNAMESE_NAMES = {
+    'apple': 'Táo',
+    'banana': 'Chuối',
+    'bell_pepper': 'Ớt chuông',
+    'cabbage': 'Bắp cải',
+    'carrot': 'Cà rốt',
+    'chilli_pepper': 'Ớt',
+    'corn': 'Ngô',
+    'cucumber': 'Dưa chuột',
+    'eggplant': 'Cà tím',
+    'garlic': 'Tỏi',
+    'grape': 'Nho',
+    'kiwi': 'Kiwi',
+    'lemon': 'Chanh',
+    'lettuce': 'Xà lách',
+    'mango': 'Xoài',
+    'onion': 'Hành tây',
+    'orange': 'Cam',
+    'pineapple': 'Dứa',
+    'potato': 'Khoai tây',
+    'sweetpotato': 'Khoai lang',
+    'tomato': 'Cà chua',
+    'watermelon': 'Dưa hấu',
+    'Unknown': 'Không xác định'
+}
+
+VIETNAMESE_NAMES_NO_DIACRITICS = {
+    'apple': 'Tao',
+    'banana': 'Chuoi',
+    'bell_pepper': 'Ot chuong',
+    'cabbage': 'Bap cai',
+    'carrot': 'Ca rot',
+    'chilli_pepper': 'Ot',
+    'corn': 'Ngo',
+    'cucumber': 'Dua chuot',
+    'eggplant': 'Ca tim',
+    'garlic': 'Toi',
+    'grape': 'Nho',
+    'kiwi': 'Kiwi',
+    'lemon': 'Chanh',
+    'lettuce': 'Xa lach',
+    'mango': 'Xoai',
+    'onion': 'Hanh tay',
+    'orange': 'Cam',
+    'pineapple': 'Dua',
+    'potato': 'Khoai tay',
+    'sweetpotato': 'Khoai lang',
+    'tomato': 'Ca chua',
+    'watermelon': 'Dua hau',
+    'Unknown': 'Khong xac dinh'
+}
+
 _migrated = False
 
 def ensure_migrations():
@@ -107,9 +159,11 @@ def predict_and_add(request):
                 unit_price = PRICE_LIST.get(detected_class, 0)
                 total_price = unit_price * weight
 
+                product_name_vn = VIETNAMESE_NAMES.get(detected_class, detected_class)
+
                 item = InvoiceItem(
                     invoice=invoice,
-                    product_name=detected_class,
+                    product_name=product_name_vn,
                     weight=weight,
                     price=total_price
                 )
@@ -119,7 +173,7 @@ def predict_and_add(request):
 
                 # ✅ Đã bỏ image_url khỏi response
                 return JsonResponse({
-                    'name': item.product_name,
+                    'name': VIETNAMESE_NAMES_NO_DIACRITICS.get(detected_class, detected_class),
                     'price': float(item.price),
                     'weight': float(item.weight)
                 })
@@ -195,6 +249,34 @@ def api_get_cart(request):
         'total_amount': total
     })
 
+def api_invoice_history(request):
+    ensure_migrations()
+    # Lấy 50 hóa đơn gần nhất đã đóng
+    invoices = Invoice.objects.filter(status='CLOSED').order_by('-created_at')[:50]
+    
+    data = []
+    for inv in invoices:
+        items = []
+        total_amount = 0
+        for item in inv.items.all():
+            items.append({
+                'product_name': item.product_name,
+                'weight': item.weight,
+                'price': item.price
+            })
+            total_amount += item.price
+            
+        data.append({
+            'id': inv.id,
+            'created_at': inv.created_at.strftime('%d/%m/%Y %H:%M:%S'),
+            'rescan_count': inv.rescan_count,
+            'items': items,
+            'total_amount': total_amount,
+            'item_count': len(items)
+        })
+        
+    return JsonResponse({'invoices': data})
+
 # --- WEB CONTROLLERS ---
 def dashboard(request):
     ensure_migrations()
@@ -203,7 +285,36 @@ def dashboard(request):
     invoice = None
     if invoice_id:
         invoice = Invoice.objects.filter(id=invoice_id, status__in=['OPEN', 'LOCKED']).first()
-    return render(request, 'dashboard.html', {'invoice': invoice})
+
+    # Lấy hóa đơn vừa thanh toán nếu có để xem lại
+    last_paid_invoice = None
+    last_paid_total_formatted = "0"
+    last_paid_invoice_id = request.session.get('last_paid_invoice_id')
+    if last_paid_invoice_id:
+        last_paid_invoice = Invoice.objects.filter(id=last_paid_invoice_id).first()
+        if last_paid_invoice:
+            total_amount = sum(item.price for item in last_paid_invoice.items.all())
+            last_paid_total_formatted = f"{total_amount:,.0f}".replace(",", ".")
+    
+    # Chỉ xử lý bảng giá khi chưa bắt đầu hóa đơn mới
+    products = []
+    if not invoice:
+        products = [
+            {
+                'name': VIETNAMESE_NAMES.get(name, name.replace('_', ' ')),
+                'price': price,
+                'formatted_price': f"{price:,.0f}".replace(",", ".")
+            }
+            for name, price in PRICE_LIST.items() if name != 'Unknown'
+        ]
+        products = sorted(products, key=lambda x: x['name'])
+        
+    return render(request, 'dashboard.html', {
+        'invoice': invoice,
+        'products': products,
+        'last_paid_invoice': last_paid_invoice,
+        'last_paid_total_formatted': last_paid_total_formatted
+    })
 
 def start_invoice(request):
     # Đóng các hóa đơn cũ để dọn dẹp CSDL
@@ -251,6 +362,12 @@ def confirm_invoice(request, invoice_id):
     invoice.save()
     # Xóa khỏi session sau khi đã hoàn tất thanh toán
     request.session.pop('active_invoice_id', None)
+    # Lưu lại ID hóa đơn vừa thanh toán vào session để hiển thị xem lại
+    request.session['last_paid_invoice_id'] = invoice.id
+    return redirect('dashboard')
+
+def clear_last_paid(request):
+    request.session.pop('last_paid_invoice_id', None)
     return redirect('dashboard')
 
 def cancel_invoice(request, invoice_id):
@@ -315,9 +432,11 @@ def test_predict_upload(request):
                 unit_price = PRICE_LIST.get(detected_class, 0)
                 total_price = unit_price * weight
 
+                product_name_vn = VIETNAMESE_NAMES.get(detected_class, detected_class)
+
                 item = InvoiceItem(
                     invoice=invoice,
-                    product_name=detected_class,
+                    product_name=product_name_vn,
                     weight=weight,
                     price=total_price
                 )
@@ -328,7 +447,7 @@ def test_predict_upload(request):
                 # ✅ Đã bỏ image_result_url khỏi response
                 return JsonResponse({
                     'status': 'success',
-                    'detected': detected_class,
+                    'detected': product_name_vn,
                     'weight': weight,
                     'price': total_price
                 })
@@ -423,7 +542,7 @@ def sandbox_predict(request):
                 total_price = unit_price * weight
                 
                 detections.append({
-                    'class': detected_class,
+                    'class': VIETNAMESE_NAMES.get(detected_class, detected_class),
                     'confidence': confidence,
                     'unit_price': unit_price,
                     'total_price': total_price

@@ -230,6 +230,14 @@
             color: #94a3b8;
             font-size: 0.85rem;
         }
+
+        .fw-800 {
+            font-weight: 800;
+        }
+
+        .fw-900 {
+            font-weight: 900;
+        }
     </style>
 </head>
 <body>
@@ -241,6 +249,9 @@
             <span>Autobill <span class="fw-light text-muted">Pro</span></span>
         </a>
         <div class="d-flex align-items-center gap-3">
+            <button onclick="showHistoryPasswordModal()" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-bold me-1">
+                <i class="fas fa-history"></i> Lịch sử hóa đơn
+            </button>
             <a href="{% url 'sandbox' %}" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold me-2">
                 <i class="fas fa-vial"></i> Thử nghiệm AI (Sandbox)
             </a>
@@ -255,20 +266,107 @@
 
 <div class="container py-5">
     {% if not invoice or invoice.status == 'CLOSED' %}
-        <!-- MÀN HÌNH CHÀO -->
-        <div class="row justify-content-center py-5">
+        {% if last_paid_invoice %}
+        <!-- HÓA ĐƠN VỪA THANH TOÁN -->
+        <div class="row mb-4 animate-fade">
+            <div class="col-12">
+                <div class="card-premium p-4 shadow-sm position-relative overflow-hidden animate-fade" style="border-left: 5px solid var(--success); background: white; border-radius: 24px;">
+                    <!-- Decorative background glow -->
+                    <div class="position-absolute" style="top: -20px; right: -20px; width: 150px; height: 150px; background: rgba(16, 185, 129, 0.05); filter: blur(40px); border-radius: 50%;"></div>
+                    
+                    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                        <div>
+                            <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3 py-1 mb-2 fw-bold" style="font-size: 0.75rem;">
+                                <i class="fas fa-check-circle me-1"></i> GIAO DỊCH THÀNH CÔNG
+                            </span>
+                            <h4 class="fw-800 text-dark mb-1">Hóa đơn vừa thanh toán #{{ last_paid_invoice.id|slice:":8" }}</h4>
+                            <p class="text-muted small mb-0">Thanh toán lúc: {{ last_paid_invoice.created_at|date:"d/m/Y H:i:s" }}</p>
+                        </div>
+                        <a href="{% url 'clear_last_paid' %}" class="btn btn-outline-secondary btn-premium btn-sm" style="border-radius: 12px; font-weight: 600; border-width: 2px;">
+                            <i class="fas fa-times"></i> Đóng / Xác nhận
+                        </a>
+                    </div>
+                    
+                    <div class="border-top pt-3">
+                        <h6 class="fw-bold text-muted mb-3" style="font-size: 0.8rem; letter-spacing: 0.5px;">CHI TIẾT SẢN PHẨM ĐÃ THANH TOÁN</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-borderless align-middle mb-0 small">
+                                <thead>
+                                    <tr class="text-muted" style="border-bottom: 1px solid #f1f5f9;">
+                                        <th class="pb-2">Sản phẩm</th>
+                                        <th class="pb-2">Khối lượng</th>
+                                        <th class="pb-2 text-end">Thành tiền</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in last_paid_invoice.items.all %}
+                                    <tr>
+                                        <td class="py-2 fw-bold text-dark">{{ item.product_name }}</td>
+                                        <td class="py-2 fw-600">{{ item.weight|floatformat:3 }} kg</td>
+                                        <td class="py-2 text-end fw-bold text-primary">{{ item.price|floatformat:0 }} ₫</td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="3" class="text-center py-2 text-muted">Hóa đơn trống (không có sản phẩm)</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        {% if last_paid_invoice.items.all %}
+                        <div class="d-flex justify-content-between align-items-center bg-light p-3 rounded-4 mt-3">
+                            <span class="fw-bold text-secondary small">TỔNG TIỀN ĐÃ THANH TOÁN:</span>
+                            <span class="fw-900 text-success fs-5">{{ last_paid_total_formatted }} ₫</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- MÀN HÌNH CHÀO (Chia 2 Cột: Bắt đầu & Bảng giá) -->
+        <div class="row g-4 align-items-stretch py-3">
+            <!-- Cột bên trái: Bắt đầu hóa đơn -->
             <div class="col-lg-6">
-                <div class="card-premium p-5 text-center">
+                <div class="card-premium p-4 p-md-5 text-center h-100 d-flex flex-column justify-content-center shadow-sm">
                     <div class="mb-4">
                         <div class="mx-auto bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 100px; height: 100px;">
-                            <i class="fas fa-cart-plus fa-3x"></i>
+                            <i class="fas fa-cart-plus fa-3x" aria-hidden="true"></i>
                         </div>
                     </div>
                     <h2 class="fw-800 mb-3">Sẵn sàng thanh toán?</h2>
                     <p class="text-secondary mb-5 px-lg-5">Mở phiên làm việc mới để bắt đầu nhận diện sản phẩm tự động từ thiết bị.</p>
                     <a href="{% url 'start_invoice' %}" class="btn btn-primary-p btn-premium btn-lg w-100 justify-content-center">
-                        <i class="fas fa-plus-circle"></i> Bắt đầu hóa đơn mới
+                        <i class="fas fa-plus-circle" aria-hidden="true"></i> Bắt đầu hóa đơn mới
                     </a>
+                </div>
+            </div>
+            
+            <!-- Cột bên phải: Bảng giá nông sản tối giản -->
+            <div class="col-lg-6">
+                <div class="card-premium p-4 h-100 d-flex flex-column shadow-sm">
+                    <h4 class="fw-800 mb-2 text-dark">
+                        <i class="fas fa-tags text-primary me-2" aria-hidden="true"></i>Bảng giá sản phẩm
+                    </h4>
+                    <p class="text-muted small mb-3">Danh sách đơn giá tính trên mỗi kilôgam (kg) nông sản được hỗ trợ quét tự động.</p>
+                    
+                    <div class="flex-grow-1 overflow-auto pe-1" style="max-height: 380px;">
+                        <div class="list-group list-group-flush">
+                            {% for product in products %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center py-2 px-0 bg-transparent border-bottom border-light">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="text-muted"><i class="fas fa-seedling text-secondary opacity-75" aria-hidden="true"></i></span>
+                                    <span class="fw-bold text-dark text-capitalize">{{ product.name }}</span>
+                                </div>
+                                <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3 py-2 fw-bold" style="font-size: 0.85rem;">
+                                    {{ product.formatted_price }} ₫/kg
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -542,8 +640,9 @@
                 data.items.forEach((item, idx) => {
                     // Chọn icon dựa trên tên (giả lập)
                     let icon = 'fa-apple-whole';
-                    if (item.product_name.toLowerCase().includes('banana')) icon = 'fa-leaf';
-                    if (item.product_name.toLowerCase().includes('orange')) icon = 'fa-sun';
+                    const lowerName = item.product_name.toLowerCase();
+                    if (lowerName.includes('banana') || lowerName.includes('chuối') || lowerName.includes('chuoi')) icon = 'fa-leaf';
+                    if (lowerName.includes('orange') || lowerName.includes('cam')) icon = 'fa-sun';
                     
                     rowsHtml += `
                         <tr class="animate-fade">
@@ -610,7 +709,10 @@
         }
 
         // Kiểm tra xem có sản phẩm nào chưa nhận diện được (Unknown) hay không
-        const hasUnknown = latestCartData.items.some(item => item.product_name.toLowerCase() === 'unknown');
+        const hasUnknown = latestCartData.items.some(item => {
+            const name = item.product_name.toLowerCase();
+            return name === 'unknown' || name === 'không xác định' || name === 'khong xac dinh';
+        });
         if (hasUnknown) {
             showCustomAlert("Sản phẩm chưa nhận diện", "Trong giỏ hàng đang tồn tại mặt hàng chưa được nhận diện (Unknown). Vui lòng quét lại hoặc xóa sản phẩm này trước khi thanh toán để tránh sai sót đơn hàng.");
             return;
@@ -711,7 +813,202 @@
     </div>
 </div>
 
+<!-- Lịch sử hóa đơn: Xác thực mật khẩu Admin -->
+<div id="history-password-overlay" class="locked-overlay d-none" style="z-index: 10050;">
+    <div class="locked-card text-center p-5" style="max-width: 440px; width: 90%;">
+        <div class="mb-4">
+            <div class="mx-auto bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                <i class="fas fa-lock fa-2x"></i>
+            </div>
+        </div>
+        <h3 class="fw-800 text-dark mb-2">Xác thực Admin</h3>
+        <p class="text-secondary small mb-4 px-2">Nhập mật khẩu Admin để truy cập lịch sử hóa đơn hệ thống.</p>
+        
+        <div class="mb-4 text-start">
+            <label for="history-admin-password" class="form-label small fw-bold text-muted ps-1">Mật khẩu:</label>
+            <div class="input-group">
+                <span class="input-group-text bg-light border-end-0 border-2" style="border-radius: 12px 0 0 12px; border-color: #e2e8f0;">
+                    <i class="fas fa-key text-secondary"></i>
+                </span>
+                <input type="password" id="history-admin-password" class="form-control bg-light border-start-0 border-2 py-2 px-3" style="border-radius: 0 12px 12px 0; border-color: #e2e8f0; font-weight: 600;" placeholder="Nhập mật khẩu..." onkeydown="if(event.key==='Enter') verifyHistoryPassword()">
+            </div>
+            <div id="history-password-error" class="text-danger small mt-2 ps-1 d-none">
+                <i class="fas fa-exclamation-circle"></i> Mật khẩu không chính xác!
+            </div>
+        </div>
 
+        <div class="row g-2">
+            <div class="col-6">
+                <button onclick="hideHistoryPasswordModal()" class="btn btn-outline-secondary btn-premium w-100 justify-content-center border-2" style="border-radius: 14px; font-weight: 600;">
+                    Hủy bỏ
+                </button>
+            </div>
+            <div class="col-6">
+                <button onclick="verifyHistoryPassword()" class="btn btn-primary-p btn-premium w-100 justify-content-center">
+                    Xác nhận
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lịch sử hóa đơn: Giao diện xem lịch sử -->
+<div id="history-display-overlay" class="locked-overlay d-none" style="background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); z-index: 10040;">
+    <div class="locked-card text-start p-5" style="max-width: 750px; width: 95%; max-height: 85vh; overflow-y: auto; border-radius: 24px; background: white;">
+        <div class="text-center mb-4">
+            <div class="mx-auto bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 70px; height: 70px;">
+                <i class="fas fa-history fa-2x"></i>
+            </div>
+            <h3 class="fw-800 text-dark mb-1">Lịch Sử Hóa Đơn</h3>
+            <p class="text-muted small">Danh sách các hóa đơn đã được xử lý trong hệ thống</p>
+        </div>
+        
+        <div id="history-items-container" class="mb-4" style="max-height: 400px; overflow-y: auto; border: 1px solid #f1f5f9; border-radius: 16px; padding: 15px; background: #f8fafc;">
+            <!-- Render danh sách hóa đơn bằng JavaScript -->
+        </div>
+
+        <div class="text-end">
+            <button onclick="hideHistoryDisplay()" class="btn btn-outline-secondary btn-premium px-4" style="border-radius: 14px; font-weight: 600; border-width: 2px;">
+                Đóng
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function formatMoney(amount) {
+        return new Intl.NumberFormat('vi-VN').format(amount);
+    }
+
+    function showHistoryPasswordModal() {
+        document.getElementById('history-password-overlay').classList.remove('d-none');
+        document.getElementById('history-admin-password').focus();
+    }
+
+    function hideHistoryPasswordModal() {
+        document.getElementById('history-password-overlay').classList.add('d-none');
+        document.getElementById('history-admin-password').value = '';
+        document.getElementById('history-password-error').classList.add('d-none');
+    }
+
+    function verifyHistoryPassword() {
+        const pwdInput = document.getElementById('history-admin-password');
+        const errDiv = document.getElementById('history-password-error');
+        
+        if (pwdInput.value === '123456') {
+            errDiv.classList.add('d-none');
+            pwdInput.classList.remove('is-invalid');
+            pwdInput.value = '';
+            hideHistoryPasswordModal();
+            fetchHistoryAndShow();
+        } else {
+            errDiv.classList.remove('d-none');
+            pwdInput.classList.add('is-invalid');
+            pwdInput.value = '';
+            pwdInput.focus();
+        }
+    }
+
+    function toggleInvoiceCollapse(headerElement) {
+        const body = headerElement.nextElementSibling;
+        const icon = headerElement.querySelector('.fa-chevron-down, .fa-chevron-up');
+        if (body.classList.contains('d-none')) {
+            body.classList.remove('d-none');
+            if (icon) {
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-up');
+            }
+        } else {
+            body.classList.add('d-none');
+            if (icon) {
+                icon.classList.remove('fa-chevron-up');
+                icon.classList.add('fa-chevron-down');
+            }
+        }
+    }
+
+    function fetchHistoryAndShow() {
+        fetch('/api/history/')
+            .then(res => res.json())
+            .then(data => {
+                const container = document.getElementById('history-items-container');
+                if (!data.invoices || data.invoices.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-5">
+                            <i class="fas fa-history fa-3x text-muted opacity-30 mb-3"></i>
+                            <p class="text-muted fw-bold">Chưa có lịch sử hóa đơn nào.</p>
+                        </div>
+                    `;
+                    document.getElementById('history-display-overlay').classList.remove('d-none');
+                    return;
+                }
+                
+                let html = '';
+                data.invoices.forEach(inv => {
+                    const shortId = inv.id.toString().substring(0, 8);
+                    const statusText = inv.item_count > 0 ? 'Hoàn thành' : 'Đã hủy';
+                    const statusClass = inv.item_count > 0 ? 'bg-success bg-opacity-10 text-success' : 'bg-secondary bg-opacity-10 text-secondary';
+                    
+                    let itemsHtml = '';
+                    inv.items.forEach(item => {
+                        itemsHtml += `
+                            <tr>
+                                <td class="fw-bold">${item.product_name}</td>
+                                <td>${item.weight.toFixed(3)} kg</td>
+                                <td class="text-end fw-bold text-primary">${formatMoney(item.price)} ₫</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += `
+                        <div class="card mb-3 border-0 shadow-sm" style="border-radius: 12px; overflow: hidden; background: white;">
+                            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center" style="cursor: pointer;" onclick="toggleInvoiceCollapse(this)">
+                                <div>
+                                    <span class="fw-bold text-dark">Hóa đơn #${shortId}</span>
+                                    <span class="text-muted small ms-2">${inv.created_at}</span>
+                                </div>
+                                <div class="d-flex align-items-center gap-3">
+                                    <span class="badge ${statusClass} rounded-pill px-3 py-1 fw-bold" style="font-size: 0.75rem;">${statusText}</span>
+                                    <span class="fw-bold text-dark">${formatMoney(inv.total_amount)} ₫</span>
+                                    <i class="fas fa-chevron-down text-muted small"></i>
+                                </div>
+                            </div>
+                            <div class="card-body bg-light border-top d-none">
+                                ${inv.item_count > 0 ? `
+                                    <table class="table table-sm table-borderless mb-0 small">
+                                        <thead>
+                                            <tr class="text-muted" style="border-bottom: 1px solid #e2e8f0;">
+                                                <th class="pb-2">Sản phẩm</th>
+                                                <th class="pb-2">Khối lượng</th>
+                                                <th class="pb-2 text-end">Thành tiền</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${itemsHtml}
+                                        </tbody>
+                                    </table>
+                                ` : `
+                                    <div class="text-center py-3 text-muted small">
+                                        <i class="fas fa-trash-alt me-1"></i> Hóa đơn trống (đã hủy)
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+                document.getElementById('history-display-overlay').classList.remove('d-none');
+            })
+            .catch(err => {
+                console.error("Lỗi khi tải lịch sử:", err);
+                alert("Không thể tải danh sách lịch sử hóa đơn. Vui lòng thử lại!");
+            });
+    }
+
+    function hideHistoryDisplay() {
+        document.getElementById('history-display-overlay').classList.add('d-none');
+    }
+</script>
 
 </body>
 </html>

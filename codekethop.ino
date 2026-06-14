@@ -325,7 +325,7 @@ void setRGB(bool r, bool g, bool b) {
 
 void updateLCD(float kg) {
   lcd.setCursor(0, 0);
-  lcd.print("  Weight:       ");
+  lcd.print("  Khoi luong:   ");
   lcd.setCursor(0, 1);
   char buf[17];
   if (kg < 1.0f) snprintf(buf, sizeof(buf), "  %5.0f g       ", kg * 1000);
@@ -365,7 +365,7 @@ bool sendToServer(float kg, String& outName, float& outPrice, float& outWeight) 
                + "&cam_ip=" + WiFi.localIP().toString();
 
   LOG_INFO("Sending → %s", url.c_str());
-  lcdPrint("  Sending...    ", "  Please wait   ");
+  lcdPrint("  Dang gui...   ", " Vui long cho   ");
   setRGB(1, 1, 0);  // vàng = đang gửi
 
   LOG_INFO("Full URL: %s", url.c_str());
@@ -451,79 +451,79 @@ void setup() {
   Wire.begin(I2C_SDA, I2C_SCL);
   lcd.init();
   lcd.backlight();
-  lcdPrint("  Smart Scale   ", "  Starting...   ");
+  lcdPrint("  Can thong minh", " Dang khoi dong ");
   LOG_OK("LCD initialized");
-
+ 
   // ── WiFi (có timeout 15s) ───────────────────────
   LOG_INFO("WiFi connecting to: %s", WIFI_SSID);
-  lcdPrint("  Connecting... ", "  WiFi...       ");
+  lcdPrint(" Dang ket noi...", "  WiFi...       ");
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-
+ 
   unsigned long wifiStart = millis();
   while (WiFi.status() != WL_CONNECTED) {
     if (millis() - wifiStart > 15000) {
       LOG_WARN("WiFi timeout — continuing without WiFi");
-      lcdPrint("  WiFi TIMEOUT  ", "  No server     ");
+      lcdPrint("  Het gio WiFi  ", " Khong co server");
       delay(1500);
       break;  // không crash, chạy tiếp ở chế độ offline
     }
     delay(300);
   }
-
+ 
   if (WiFi.status() == WL_CONNECTED) {
     LOG_OK("WiFi connected — IP: %s", WiFi.localIP().toString().c_str());
     lcdPrint("  WiFi OK       ", "                ");
     delay(500);
   }
-
+ 
   // ── Camera ──────────────────────────────────────
   LOG_INFO("Initializing camera...");
-  lcdPrint("  Camera init...", "                ");
-
+  lcdPrint(" Khoi tao Cam...", "                ");
+ 
   if (!psramFound()) {
     LOG_ERR("No PSRAM — camera disabled");
     LOG_ERR("Fix: Tools -> PSRAM -> OPI PSRAM");
-    lcdPrint("  No PSRAM!     ", "  Camera skip   ");
+    lcdPrint("  Khong PSRAM!  ", "  Bo qua Cam    ");
     delay(2000);
     // Tiếp tục chạy không có camera
   } else {
     if (initCamera()) {
       LOG_OK("Camera ready");
-      lcdPrint("  Camera OK     ", "                ");
+      lcdPrint("   Camera OK    ", "                ");
     } else {
       LOG_ERR("Camera init failed — check cable/pins");
-      lcdPrint("  CAMERA ERROR! ", "  Check cable   ");
+      lcdPrint("   LOI CAMERA!  ", "  Kiem tra cap  ");
       delay(2000);
       // Không dừng hẳn, chạy tiếp không có camera
     }
     delay(500);
   }
-
+ 
   // ── HX711 ───────────────────────────────────────
   LOG_INFO("Initializing HX711...");
-  lcdPrint("  Scale init... ", "                ");
+  lcdPrint(" Khoi tao can...", "                ");
   scale.begin(HX_DT, HX_SCK);
-
+ 
   unsigned long hxStart = millis();
   while (!scale.is_ready()) {
     if (millis() - hxStart > 5000) {
       LOG_ERR("HX711 timeout — check wiring DT=%d SCK=%d", HX_DT, HX_SCK);
-      lcdPrint("  HX711 ERROR!  ", "  Check wiring  ");
+      lcdPrint("   LOI HX711!   ", " Kiem tra day   ");
       while (true) delay(1000);
     }
     delay(50);
   }
   scale.set_scale(CALIBRATION_FACTOR);
   delay(1000);
-
+ 
   // ── Tare với miếng lót ──────────────────────────
-  lcdPrint("  Put pad on    ", "  scale, wait...");
+  lcdPrint(" Dat mieng lot  ", " len can, cho...");
   LOG_INFO("Waiting 4s — place pad on scale...");
   delay(4000);
-
+ 
   scale.tare();
   LOG_OK("HX711 ready — tared with pad");
-  lcdPrint("  Tare OK!      ", "                ");
+  lcdPrint("  Hieu chuan OK!", "                ");
   delay(800);
 
   // ── Done ────────────────────────────────────────
@@ -707,7 +707,7 @@ void loop() {
 
     case SENDING:
       {
-        String name = "Unknown";
+        String name = "Khong xac dinh";
         float price = 0;
         float wt = 0;
 
@@ -747,7 +747,7 @@ void loop() {
         } else {
           setRGB(1, 0, 0);  // đỏ = lỗi
           startBeep(500, 1);
-          lcdPrint("  Server Error  ", "  Check WiFi... ");
+          lcdPrint("   Loi Server   ", " Kiem tra WiFi..");
           LOG_ERR("sendToServer failed");
           delay(2000);
 
